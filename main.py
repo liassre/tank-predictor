@@ -8,14 +8,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="Tank Morgen API", version="9.0.0")
+app = FastAPI(title="Tank Morgen API", version="10.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 STATIONS = [
-    {"id":"aral-berlin-demo","brand":"ARAL","name":"ARAL Berlin Mitte","address":"Invalidenstraße 55, Berlin","distanceKm":0.8,"prices":{"diesel":1.629,"e10":1.739,"e5":1.799},"prediction":"lower","confidence":64,"expectedDeltaCents":-4.8},
-    {"id":"jet-berlin-demo","brand":"JET","name":"JET Berlin Friedrichshain","address":"Frankfurter Allee 88, Berlin","distanceKm":2.1,"prices":{"diesel":1.599,"e10":1.719,"e5":1.779},"prediction":"lower","confidence":71,"expectedDeltaCents":-5.5},
-    {"id":"shell-berlin-demo","brand":"Shell","name":"Shell Berlin Prenzlauer Berg","address":"Prenzlauer Allee 120, Berlin","distanceKm":1.4,"prices":{"diesel":1.649,"e10":1.759,"e5":1.819},"prediction":"higher","confidence":58,"expectedDeltaCents":3.2},
-    {"id":"esso-berlin-demo","brand":"Esso","name":"Esso Berlin Charlottenburg","address":"Kantstraße 145, Berlin","distanceKm":3.5,"prices":{"diesel":1.639,"e10":1.749,"e5":1.809},"prediction":"lower","confidence":61,"expectedDeltaCents":-2.9},
+    {"id":"aral-berlin-demo","brand":"ARAL","name":"ARAL Berlin Mitte","address":"Invalidenstraße 55, Berlin","distanceKm":0.8,"prices":{"diesel":1.629,"e10":1.739,"e5":1.799},"prediction":"lower","confidence":64,"expectedDeltaCents":-4.8,"predictions":{"diesel":{"direction":"lower","confidence":64,"expectedDeltaCents":-4.8},"e10":{"direction":"lower","confidence":61,"expectedDeltaCents":-3.6},"e5":{"direction":"higher","confidence":57,"expectedDeltaCents":2.4}}},
+    {"id":"jet-berlin-demo","brand":"JET","name":"JET Berlin Friedrichshain","address":"Frankfurter Allee 88, Berlin","distanceKm":2.1,"prices":{"diesel":1.599,"e10":1.719,"e5":1.779},"prediction":"lower","confidence":71,"expectedDeltaCents":-5.5,"predictions":{"diesel":{"direction":"lower","confidence":71,"expectedDeltaCents":-5.5},"e10":{"direction":"lower","confidence":67,"expectedDeltaCents":-4.1},"e5":{"direction":"lower","confidence":63,"expectedDeltaCents":-3.2}}},
+    {"id":"shell-berlin-demo","brand":"Shell","name":"Shell Berlin Prenzlauer Berg","address":"Prenzlauer Allee 120, Berlin","distanceKm":1.4,"prices":{"diesel":1.649,"e10":1.759,"e5":1.819},"prediction":"higher","confidence":58,"expectedDeltaCents":3.2,"predictions":{"diesel":{"direction":"higher","confidence":58,"expectedDeltaCents":3.2},"e10":{"direction":"higher","confidence":60,"expectedDeltaCents":2.8},"e5":{"direction":"lower","confidence":56,"expectedDeltaCents":-2.1}}},
+    {"id":"esso-berlin-demo","brand":"Esso","name":"Esso Berlin Charlottenburg","address":"Kantstraße 145, Berlin","distanceKm":3.5,"prices":{"diesel":1.639,"e10":1.749,"e5":1.809},"prediction":"lower","confidence":61,"expectedDeltaCents":-2.9,"predictions":{"diesel":{"direction":"lower","confidence":61,"expectedDeltaCents":-2.9},"e10":{"direction":"higher","confidence":55,"expectedDeltaCents":1.8},"e5":{"direction":"lower","confidence":59,"expectedDeltaCents":-2.5}}},
 ]
 
 REASONS = {
@@ -106,7 +106,7 @@ def live_market() -> dict:
     return data
 
 @app.get("/health")
-def health(): return {"status":"ok", "version":"9.0.0"}
+def health(): return {"status":"ok", "version":"10.0.0"}
 
 @app.get("/dashboard")
 def dashboard():
@@ -121,10 +121,12 @@ def stations_nearby(lat: float | None = None, lng: float | None = None):
 @app.post("/predict/station")
 def predict_station(req: PredictRequest):
     station = next((s for s in STATIONS if s["id"] == req.stationId), STATIONS[0])
-    prediction = station["prediction"]
-    delta = float(station["expectedDeltaCents"])
+    fuel_prediction = station.get("predictions", {}).get(req.fuelType, {})
+    delta = float(fuel_prediction.get("expectedDeltaCents", station["expectedDeltaCents"]))
+    prediction = fuel_prediction.get("direction", station["prediction"])
+    confidence = int(fuel_prediction.get("confidence", station["confidence"]))
     savings = abs(delta) / 100 * max(req.tankLiters, 1)
-    return {"stationId":station["id"], "fuelType":req.fuelType, "direction":prediction, "confidence":station["confidence"], "expectedDeltaCents":delta, "tankLiters":req.tankLiters, "estimatedMoneyImpact":round(savings,2), "reasons":REASONS[prediction], "disclaimer":{"en":"Prediction is an estimate, not a guarantee.", "de":"Die Prognose ist eine Einschätzung, keine Garantie."}}
+    return {"stationId":station["id"], "fuelType":req.fuelType, "direction":prediction, "confidence":confidence, "expectedDeltaCents":delta, "tankLiters":req.tankLiters, "estimatedMoneyImpact":round(savings,2), "reasons":REASONS[prediction], "disclaimer":{"en":"Prediction is an estimate, not a guarantee.", "de":"Die Prognose ist eine Einschätzung, keine Garantie."}}
 
 @app.get("/market-signals")
 def market_signals(): return live_market()

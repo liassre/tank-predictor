@@ -1,9 +1,3 @@
-# Tank Morgen Backend v8
+# Tank Morgen v10
 
-Fast first-paint dashboard endpoint plus live/fallback market signals.
-
-- `/health`
-- `/dashboard` fast first load
-- `/stations/nearby`
-- `/market-signals`
-- `/predict/station`
+Fixes fuel-specific prediction updates, smoother page swiping and keeps API-ready station prediction fields.
