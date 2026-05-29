@@ -1,10 +1,9 @@
-# Tank Morgen Backend v6
+# Tank Morgen Backend v8
 
-FastAPI backend with demo German stations and live/fallback market intelligence.
+Fast first-paint dashboard endpoint plus live/fallback market signals.
 
-Endpoints:
 - `/health`
+- `/dashboard` fast first load
 - `/stations/nearby`
-- `/predict/station`
 - `/market-signals`
-- `/how-it-works`
+- `/predict/station`
