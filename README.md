@@ -1,14 +1,12 @@
-# Tank Predictor Backend v2
+# Tank Morgen API v4
 
-Replace the files in your Railway GitHub repo with these backend files.
+Backend with station endpoints plus a `/market-signals` placeholder endpoint.
 
-Endpoints:
+## Endpoints
 - `/health`
 - `/stations/nearby`
 - `/predict/station`
+- `/market-signals`
 - `/how-it-works`
 
-For now it returns demo stations if `TANKERKOENIG_API_KEY` is missing.
-When your key arrives, add it to Railway Variables:
-
-`TANKERKOENIG_API_KEY=your_key_here`
+The market signals are demo placeholders for now. Later they can be connected to Brent oil, EUR/USD, news, holidays and refinery/OPEC signals.
