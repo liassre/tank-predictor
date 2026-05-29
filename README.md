@@ -1,12 +1,14 @@
-# Tank Predictor Backend - Clean Railway Version
+# Tank Predictor Backend v2
 
-This is a clean FastAPI backend for Railway.
+Replace the files in your Railway GitHub repo with these backend files.
 
 Endpoints:
 - `/health`
-- `/predict`
-- POST `/predict` with JSON: `{ "prices": [1.82, 1.81, 1.79, 1.80, 1.83] }`
-- POST `/upload-csv` with CSV file
+- `/stations/nearby`
+- `/predict/station`
+- `/how-it-works`
 
-Railway start command:
-`uvicorn main:app --host 0.0.0.0 --port $PORT`
+For now it returns demo stations if `TANKERKOENIG_API_KEY` is missing.
+When your key arrives, add it to Railway Variables:
+
+`TANKERKOENIG_API_KEY=your_key_here`
