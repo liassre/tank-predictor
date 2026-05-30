@@ -1,3 +1,9 @@
-# Tank Morgen v10
+# Tank Morgen Backend v1 Real Data
 
-Fixes fuel-specific prediction updates, smoother page swiping and keeps API-ready station prediction fields.
+Uses `TANKERKOENIG_API_KEY` from Railway variables. Do not commit the key.
+
+Endpoints:
+- `/health`
+- `/dashboard?lat=49.4875&lng=8.4660&fuel=diesel&radius=5`
+- `/stations/nearby?lat=49.4875&lng=8.4660&fuel=diesel&radius=5`
+- `/market-signals`
