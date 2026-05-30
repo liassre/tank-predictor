@@ -8,7 +8,7 @@ import requests
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-APP_VERSION = "1.0-real-data"
+APP_VERSION = "1.0-real-data-pricefix"
 TANKERKOENIG_API_KEY = os.getenv("TANKERKOENIG_API_KEY", "").strip()
 TANKERKOENIG_BASE = "https://creativecommons.tankerkoenig.de/json"
 
@@ -102,11 +102,18 @@ def format_address(station: Dict[str, Any]) -> str:
 
 
 def normalize_station(raw: Dict[str, Any]) -> Dict[str, Any]:
+    # Tankerkönig list.php usually returns only the requested fuel price as "price".
+    # prices.php returns all three prices by station id. We support both shapes.
     prices = {
         "diesel": safe_float(raw.get("diesel")),
         "e10": safe_float(raw.get("e10")),
         "e5": safe_float(raw.get("e5")),
     }
+    requested_type = raw.get("_requestedFuel")
+    list_price = safe_float(raw.get("price"))
+    if requested_type in prices and prices.get(requested_type) is None and list_price is not None:
+        prices[requested_type] = list_price
+
     return {
         "id": raw.get("id"),
         "brand": raw.get("brand") or "Station",
@@ -119,6 +126,49 @@ def normalize_station(raw: Dict[str, Any]) -> Dict[str, Any]:
         "prices": prices,
         "source": "Tankerkönig / MTS-K",
     }
+
+
+def merge_live_prices(stations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Fetch all E5/E10/Diesel prices for the nearby station ids and merge them.
+
+    This is the important price fix: list.php is good for nearby search, but
+    prices.php is the correct endpoint for current prices for multiple station ids.
+    """
+    if not stations or not TANKERKOENIG_API_KEY:
+        return stations
+
+    ids = [s.get("id") for s in stations if s.get("id") and not str(s.get("id")).startswith("demo-")]
+    if not ids:
+        return stations
+
+    try:
+        res = requests.get(
+            f"{TANKERKOENIG_BASE}/prices.php",
+            params={"ids": ",".join(ids[:25]), "apikey": TANKERKOENIG_API_KEY},
+            timeout=8,
+        )
+        res.raise_for_status()
+        data = res.json()
+        if not data.get("ok"):
+            return stations
+        live_prices = data.get("prices", {}) or {}
+        for station in stations:
+            station_id = station.get("id")
+            price_block = live_prices.get(station_id) or {}
+            if not isinstance(price_block, dict):
+                continue
+
+            station["isOpen"] = bool(price_block.get("status") == "open" or price_block.get("isOpen") is True)
+            merged = dict(station.get("prices") or {})
+            for fuel_key in ["diesel", "e10", "e5"]:
+                value = safe_float(price_block.get(fuel_key))
+                if value is not None:
+                    merged[fuel_key] = value
+            station["prices"] = merged
+        return stations
+    except Exception:
+        # Keep nearby stations even if the secondary price request fails.
+        return stations
 
 
 def get_tankerkoenig_stations(lat: float, lng: float, radius: float, fuel: str) -> Dict[str, Any]:
@@ -149,7 +199,13 @@ def get_tankerkoenig_stations(lat: float, lng: float, radius: float, fuel: str) 
         data = res.json()
         if not data.get("ok"):
             return {"ok": False, "error": data.get("message") or data.get("status") or "tankerkoenig_error", "stations": DEMO_STATIONS, "source": "demo"}
-        stations = [normalize_station(s) for s in data.get("stations", []) if s.get("id")]
+        raw_stations = []
+        for item in data.get("stations", []):
+            if item.get("id"):
+                item["_requestedFuel"] = fuel if fuel != "all" else "diesel"
+                raw_stations.append(item)
+        stations = [normalize_station(s) for s in raw_stations]
+        stations = merge_live_prices(stations)
         payload = {
             "ok": True,
             "stations": stations[:20] if stations else DEMO_STATIONS,
