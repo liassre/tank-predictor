@@ -8,7 +8,7 @@ import requests
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-APP_VERSION = "1.0-real-data-pricefix"
+APP_VERSION = "1.0-stability-real-data"
 TANKERKOENIG_API_KEY = os.getenv("TANKERKOENIG_API_KEY", "").strip()
 TANKERKOENIG_BASE = "https://creativecommons.tankerkoenig.de/json"
 
@@ -250,10 +250,10 @@ def get_market_signals() -> Dict[str, Any]:
 
     # GDELT news count, no-key. Conservative impact only.
     try:
-        q = '("oil price" OR brent OR refinery OR opec OR diesel) sourceCountry:DE'
+        q = '("oil price" OR brent OR refinery OR opec OR diesel OR fuel OR gasoline)'
         r = requests.get(
             "https://api.gdeltproject.org/api/v2/doc/doc",
-            params={"query": q, "mode": "timelinevolraw", "format": "json", "timespan": "1d"},
+            params={"query": q, "mode": "timelinevolraw", "format": "json", "timespan": "1d", "maxrecords": 75},
             timeout=6,
         )
         r.raise_for_status()
@@ -267,7 +267,7 @@ def get_market_signals() -> Dict[str, Any]:
             tone, text, pressure = "positive", "Low energy-news pressure. No major upward news signal detected.", pressure - 0.04
         signals.append({"name": "Energy News", "status": "Live", "tone": tone, "text": text})
     except Exception:
-        signals.append({"name": "Energy News", "status": "Fallback", "tone": "neutral", "text": "News signal unavailable; using neutral fallback."})
+        signals.append({"name": "Energy News", "status": "Connection issue", "tone": "neutral", "text": "Live news signal could not be reached. Using neutral fallback instead of guessing."})
 
     wd = weekday_signal()
     pressure += wd["score"]
