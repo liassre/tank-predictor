@@ -8,7 +8,7 @@ import requests
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-APP_VERSION = "1.0-stability-real-data"
+APP_VERSION = "1.0.1-real-data-stability"
 TANKERKOENIG_API_KEY = os.getenv("TANKERKOENIG_API_KEY", "").strip()
 TANKERKOENIG_BASE = "https://creativecommons.tankerkoenig.de/json"
 
@@ -248,26 +248,27 @@ def get_market_signals() -> Dict[str, Any]:
     except Exception:
         signals.append({"name": "EUR/USD", "status": "Fallback", "tone": "neutral", "text": "Currency signal unavailable; using neutral fallback."})
 
-    # GDELT news count, no-key. Conservative impact only.
+    # Energy news: no-key GDELT. First try article list, then fall back neutrally.
     try:
-        q = '("oil price" OR brent OR refinery OR opec OR diesel OR fuel OR gasoline)'
+        q = '(oil OR brent OR refinery OR opec OR diesel OR gasoline OR fuel)'
         r = requests.get(
             "https://api.gdeltproject.org/api/v2/doc/doc",
-            params={"query": q, "mode": "timelinevolraw", "format": "json", "timespan": "1d", "maxrecords": 75},
-            timeout=6,
+            params={"query": q, "mode": "artlist", "format": "json", "timespan": "1d", "maxrecords": 20, "sort": "datedesc"},
+            headers={"User-Agent": "TankMorgen/1.0"},
+            timeout=8,
         )
         r.raise_for_status()
-        timeline = r.json().get("timeline", [])
-        count = sum(int(x.get("value", 0)) for x in timeline[:24]) if isinstance(timeline, list) else 0
-        if count > 120:
-            tone, text, pressure = "warning", "Elevated energy-news activity. This can increase short-term uncertainty.", pressure + 0.08
-        elif count > 40:
-            tone, text = "neutral", "Normal energy-news activity. No strong shock signal detected."
+        articles = r.json().get("articles", [])
+        count = len(articles) if isinstance(articles, list) else 0
+        if count >= 15:
+            tone, text, pressure = "warning", "High energy-news activity today. This can increase short-term fuel-price uncertainty.", pressure + 0.08
+        elif count >= 5:
+            tone, text = "neutral", "Normal energy-news activity. No clear shock signal detected."
         else:
             tone, text, pressure = "positive", "Low energy-news pressure. No major upward news signal detected.", pressure - 0.04
-        signals.append({"name": "Energy News", "status": "Live", "tone": tone, "text": text})
+        signals.append({"name": "Energy News", "status": "Live", "tone": tone, "text": text, "count": count})
     except Exception:
-        signals.append({"name": "Energy News", "status": "Connection issue", "tone": "neutral", "text": "Live news signal could not be reached. Using neutral fallback instead of guessing."})
+        signals.append({"name": "Energy News", "status": "Fallback", "tone": "neutral", "text": "Energy-news source is temporarily unavailable. Using neutral fallback instead of inventing a signal."})
 
     wd = weekday_signal()
     pressure += wd["score"]
